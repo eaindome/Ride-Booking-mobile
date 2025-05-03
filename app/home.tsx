@@ -107,22 +107,18 @@ export default function HomeScreen() {
       setRide(updatedRide);
       animateRideStatus(true);
       
-      // Handle map focus changes based on status
-      if (updatedRide.status.toLowerCase() === "driver arrived") {
-        // When driver arrives, we want to shift focus to the destination
-        // This happens automatically in MapView when status changes
-      } else if (updatedRide.status.toLowerCase() === "completed" || 
-                updatedRide.status.toLowerCase() === "ride completed") {
-        // Auto-dismiss completed rides after 10 seconds
-        setTimeout(() => {
-          setRide(null);
-          animateRideStatus(false);
-        }, 4000);
+      // More consistent status checking using both uppercase and lowercase comparisons
+      const status = updatedRide.status.toLowerCase();
+      const isCompleted = status === "completed" || status === "ride completed";
+      
+      if (isCompleted) {
+        // Don't auto-dismiss, let user click "Done" button instead
+        console.log("Ride completed, showing done button");
       }
     });
 
     socket.on("driverLocationUpdate", (data: { coordinates: [number, number] }) => {
-      // Handle real-time driver location updates if your backend sends these
+      // Handle real-time driver location updates if backend sends these
       if (ride) {
         setRide(prev => prev ? {
           ...prev,
@@ -146,7 +142,7 @@ export default function HomeScreen() {
       socket.off("driverLocationUpdate");
       socket.off("error");
     };
-  }, [animateRideStatus, checkRideStatus, ride]);
+  }, [animateRideStatus, checkRideStatus]);
 
   // Effect for handling animations
   useEffect(() => {
@@ -273,7 +269,7 @@ export default function HomeScreen() {
     // Only allow updating to next logical status based on current status
     let nextStatus: string;
     
-    // Use the exact status strings from your backend
+    // Use the exact status strings from the backend
     switch (ride?.status) {
       case "Accepted":
         nextStatus = "Driver on the way";
@@ -332,10 +328,7 @@ export default function HomeScreen() {
                 
                 // If status was updated to completed, auto-dismiss after delay
                 if (nextStatus === "Ride completed" || nextStatus.toLowerCase() === "completed") {
-                  setTimeout(() => {
-                    setRide(null);
-                    animateRideStatus(false);
-                  }, 2000);
+                  console.log("Ride completed, showing done button");
                 }
               } else {
                 console.log("Invalid ride or ride ID:", ride);
@@ -350,6 +343,19 @@ export default function HomeScreen() {
       ]
     );
   };
+
+  //  a notification when a ride completes
+useEffect(() => {
+  if (ride?.status?.toLowerCase() === "completed" || 
+      ride?.status?.toLowerCase() === "ride completed") {
+    // Could use a toast library or Alert here
+    Alert.alert(
+      "Ride Completed",
+      "Your ride has been completed. It may take a few moments to process.",
+      [{ text: "OK" }]
+    );
+  }
+}, [ride?.status]);
 
   // Ride status utilities
   const getRideStatusColor = (status: string) => {
@@ -388,22 +394,7 @@ export default function HomeScreen() {
       
       {/* Map */}
       <MapView
-        coordinates={userLocation}  // Always pass user location, not selected place
-        destinationLocation={
-          selectedPlace?.geometry?.coordinates || 
-          (ride && ride.destination_coordinates) || 
-          undefined
-        }
-        driverLocation={
-          (ride?.driver && ride.pickup_coordinates) || 
-          // Default driver location if needed in active ride, but not for completed rides
-          (ride && !ride.pickup_coordinates && 
-          ride.status.toLowerCase() !== "completed" && 
-          ride.status.toLowerCase() !== "ride completed" 
-            ? [userLocation[0] + 0.01, userLocation[1] + 0.005] 
-            : undefined)
-        }
-        rideStatus={ride?.status}
+        coordinates={selectedPlace?.geometry?.coordinates || userLocation}
       />
 
       {/* Custom Header */}
@@ -598,7 +589,7 @@ export default function HomeScreen() {
             </View>
             
             {/* Only show action buttons if ride is not completed or cancelled */}
-            {!["completed", "cancelled"].includes(ride.status.toLowerCase()) && (
+            {!["completed", "ride completed", "cancelled"].includes(ride.status.toLowerCase()) && (
               <View style={styles.actionButtons}>
                 <TouchableOpacity 
                   style={styles.updateButton}
@@ -646,16 +637,17 @@ export default function HomeScreen() {
             )}
           </View>
           
-          {ride.status.toLowerCase() === "completed" && (
-            <Button
-              title="Done"
-              onPress={() => {
-                setRide(null);
-                animateRideStatus(false);
-              }}
-              style={styles.doneButton}
-            />
-          )}
+          {ride && (ride.status.toLowerCase() === "completed" || 
+                ride.status.toLowerCase() === "ride completed") && (
+          <Button
+            title="Done"
+            onPress={() => {
+              setRide(null);
+              animateRideStatus(false);
+            }}
+            style={styles.doneButton}
+          />
+        )}
         </Animated.View>
       )}
       
