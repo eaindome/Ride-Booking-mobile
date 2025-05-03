@@ -1,29 +1,57 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { Stack, router } from "expo-router";
+import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { initSocket } from "../src/utils/socket";
+import { COLORS } from "../src/utils/constants";
 
-import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
+  useEffect(() => {
+    const checkAuth = async () => {
+      // await AsyncStorage.removeItem("token");
+      // console.log(`inside _layout.tsx`);
+      const token = await AsyncStorage.getItem("token");
+      // console.log(`token: ${token}`);
+
+      const authenticated = !!token;
+      setIsAuthenticated(authenticated);
+      
+      if (token) {
+        try {
+          initSocket();
+        } catch (error) {
+          console.error("Socket initialization error:", error);
+          // If socket fails to initialize, log user out
+          await AsyncStorage.removeItem("token");
+          setIsAuthenticated(false);
+        }
+      } else {
+        // Redirect unauthenticated users to login
+        router.replace("/login");
+      }
+    };
+    checkAuth();
+  }, []);
+
+  if (isAuthenticated === null) {
     return null;
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: COLORS.background },
+        headerTintColor: COLORS.text.primary,
+        headerTitleStyle: { fontWeight: "bold" },
+      }}
+      initialRouteName={isAuthenticated ? "home" : "login"}
+    >
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="signup" options={{ headerShown: false }} />
+      <Stack.Screen name="home" options={{ title: "Home" }} />
+      <Stack.Screen name="ride-history" options={{ title: "Ride History", headerShown: false }} />
+    </Stack>
   );
 }

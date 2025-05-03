@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Ride-Booking-mobile",
+    "name": "SwiftRide",
     "slug": "Ride-Booking-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,13 +8,17 @@
     "scheme": "ridebookingmobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#F5F5F5"
       },
       "edgeToEdgeEnabled": true
     },
@@ -35,6 +39,10 @@
         }
       ]
     ],
+    "extra": {
+      "apiUrl": "http://192.168.43.103:5000/api",
+      "socketUrl": "http://192.168.43.103:5000"
+    },
     "experiments": {
       "typedRoutes": true
     }
