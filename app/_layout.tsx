@@ -1,14 +1,39 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { initNetworkMonitoring, addNetworkListener } from '../src/utils/network';
+import { ActivityIndicator, Text, View, StyleSheet } from "react-native";
 import { COLORS } from "../src/utils/constants";
 import { initSocket } from "../src/utils/socket";
+import { processQueue } from "../src/utils/offlineQueue";
 
 export default function RootLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    // start monitoring network
+    const unsubscribe = initNetworkMonitoring();
+
+    // Add listener
+    const removeListener = addNetworkListener((connected) => {
+      setIsOffline(!connected);
+
+      if (connected) {
+        // Process queued actions when connection is restored
+        processQueue().catch(error => {
+          console.error('Error processing offline queue:', error);
+        });
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      removeListener();
+    };
+  }, []);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -72,6 +97,17 @@ export default function RootLayout() {
   }
 
   return (
+    <>
+    {/* Offline banner */}
+    {isOffline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineText}>
+            You are currently offline. Some features may be limited.
+          </Text>
+        </View>
+      )}
+
+    {/* Main Stack Navigator */}
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: COLORS.background },
@@ -91,5 +127,25 @@ export default function RootLayout() {
         options={{ title: "Ride History", headerShown: false }}
       />
     </Stack>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  offlineBanner: {
+    backgroundColor: COLORS.warning,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 999,
+  },
+  offlineText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});

@@ -2,6 +2,7 @@ import axios, { AxiosInstance, isAxiosError } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { AuthResponse, Ride, Place } from "../types";
+import { isOnline, cacheData, getCachedData } from './network';
 
 const API_URL: string = Constants.expoConfig?.extra?.apiUrl || "http://192.168.43.103:5000/api";
 
@@ -64,9 +65,33 @@ export const getRideStatus = async (): Promise<Ride> => {
 };
 
 export const getRideHistory = async (status?: string): Promise<Ride[]> => {
-  const params = status ? { status } : {};
-  const response = await api.get("/rides/history", { params });
-  return response.data;
+  const cacheKey = `ride_history_${status || 'all'}`;
+  const isConnected = await isOnline();
+
+  if (!isConnected) {
+    // Use cached data when offline
+    const cachedRides = await getCachedData<Ride[]>(cacheKey);
+    if (cachedRides) {
+      return cachedRides;
+    }
+    throw new Error("You're offline and no cached data is available");
+  }
+
+  try {
+    const params = status ? { status } : {};
+    const response = await api.get("/rides/history", { params });
+
+    await cacheData(cacheKey, response.data);
+
+    return response.data;
+  } catch (error) {
+    // Try to use cached data if request fails
+    const cachedRides = await getCachedData<Ride[]>(cacheKey);
+    if (cachedRides) {
+      return cachedRides;
+    }
+    throw error;
+  }
 };
 
 export const updateRideStatus = async (rideId: string, status: string): Promise<Ride> => {

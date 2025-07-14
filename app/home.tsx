@@ -20,11 +20,15 @@ import MapView from "../src/components/MapView";
 import InputField from "../src/components/InputField";
 import Button from "../src/components/Button";
 import ErrorMessage from "../src/components/ErrorMessage";
+import Toast from 'react-native-toast-message';
+import * as Haptics from 'expo-haptics';
 import { searchPlaces, bookRide, getRideStatus, cancelRide, updateRideStatus } from "../src/utils/api";
 import { getSocket } from "../src/utils/socket";
 import { logout } from "../src/utils/auth";
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from "../src/utils/constants";
 import { Ride, Place, ApiError } from "../src/types";
+import { isOnline } from "@/src/utils/network";
+import { queueAction } from "@/src/utils/offlineQueue";
 
 const { height } = Dimensions.get('window');
 
@@ -104,16 +108,27 @@ export default function HomeScreen() {
     const socket = getSocket();
 
     socket.on("statusUpdate", (updatedRide: Ride) => {
+      console.log(`Received ride update: ${updatedRide.status}`);
+
+      // check if transitioning to completed state
+      const isCompletingRide = (!ride || ride.status.toLowerCase() !== "completed") ||  updatedRide.status.toLowerCase() === "ride completed" ||  updatedRide.status.toLowerCase() === "completed";
+      
+      // update ride state
       setRide(updatedRide);
       animateRideStatus(true);
       
-      // More consistent status checking using both uppercase and lowercase comparisons
-      const status = updatedRide.status.toLowerCase();
-      const isCompleted = status === "completed" || status === "ride completed";
-      
-      if (isCompleted) {
-        // Don't auto-dismiss, let user click "Done" button instead
-        console.log("Ride completed, showing done button");
+      // Notify user about completion immediately
+      if (isCompletingRide) {
+        // Visual notification
+        Toast.show({
+          type: 'success',
+          text1: 'Ride Completed',
+          text2: 'Your ride has been completed successfully.',
+          visibilityTime: 4000,
+        });
+        
+        // Haptic feedback (if available)
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     });
 
@@ -142,7 +157,7 @@ export default function HomeScreen() {
       socket.off("driverLocationUpdate");
       socket.off("error");
     };
-  }, [animateRideStatus, checkRideStatus]);
+  }, [animateRideStatus, checkRideStatus, ride]);
 
   // Effect for handling animations
   useEffect(() => {
@@ -236,7 +251,7 @@ export default function HomeScreen() {
   };
 
   // Cancel ride
-  const handleCancelRide = () => {
+  const handleCancelRide = async () => {
     Alert.alert(
       "Cancel Ride",
       "Are you sure you want to cancel this ride?",
@@ -245,6 +260,19 @@ export default function HomeScreen() {
         { 
           text: "Yes",
           onPress: async () => {
+            if (!(await isOnline())) {
+              // Queue the action for later
+              await queueAction('CANCEL_RIDE', { rideId: ride?.id });
+              
+              // Provide feedback to user
+              Toast.show({
+                type: 'info',
+                text1: 'You\'re offline',
+                text2: 'Your ride will be cancelled when you\'re back online.',
+              });
+              
+              return;
+            }
             try {
               if (ride && ride.id) {
                 await cancelRide(ride.id);
@@ -646,6 +674,8 @@ useEffect(() => {
               animateRideStatus(false);
             }}
             style={styles.doneButton}
+            icon="car-outline"
+            iconPosition="right"
           />
         )}
         </Animated.View>
@@ -668,14 +698,6 @@ useEffect(() => {
           <Ionicons name="list" size={24} color={COLORS.text.secondary} />
           <Text style={[styles.navButtonText, { color: COLORS.text.secondary }]}>History</Text>
         </TouchableOpacity>
-        
-        {/* <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => router.push("/account")}
-        >
-          <Ionicons name="person" size={24} color={COLORS.text.secondary} />
-          <Text style={[styles.navButtonText, { color: COLORS.text.secondary }]}>Account</Text>
-        </TouchableOpacity> */}
       </View>
     </SafeAreaView>
   );

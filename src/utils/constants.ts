@@ -5,6 +5,7 @@ export const COLORS = {
     background: "#FFFFFF",   // Clean white background
     surface: "#F2F2F7",      // Light gray for cards/inputs
     error: "#FF3B30",        // iOS red
+    warning: "#ff9800",
     text: {
       primary: "#000000",    // Primary text
       secondary: "#3C3C43",  // Secondary text with 60% opacity
